@@ -1,0 +1,76 @@
+---
+- name: Configurar SVM y Volumen NFS en NetApp ONTAP
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Crear Storage Virtual Machine (SVM)
+      netapp.ontap.na_ontap_svm:
+        state: present
+        name: svm_nfs_test
+        root_volume: svm_nfs_root
+        root_volume_aggregate: aggr1
+        root_volume_security_style: unix
+        service_state: started
+        allowed_protocols: ['nfs']
+        hostname: "{{ netapp_hostname }}"
+        username: "{{ netapp_username }}"
+        password: "{{ netapp_password }}"
+        https: true
+
+    - name: Crear volumen NFS
+      netapp.ontap.na_ontap_volume:
+        state: present
+        name: nfs_vol_test
+        vserver: svm_nfs_test
+        aggregate_name: aggr1
+        size: 10GB
+        volume_security_style: unix
+        junction_path: /nfs_share
+        space_guarantee: none
+        hostname: "{{ netapp_hostname }}"
+        username: "{{ netapp_username }}"
+        password: "{{ netapp_password }}"
+        https: true
+
+    - name: Configurar Export Policy para NFS
+      netapp.ontap.na_ontap_export_policy:
+        state: present
+        name: default
+        vserver: svm_nfs_test
+        hostname: "{{ netapp_hostname }}"
+        username: "{{ netapp_username }}"
+        password: "{{ netapp_password }}"
+        https: true
+
+    - name: Agregar regla de exportación para permitir acceso desde cualquier IP
+      netapp.ontap.na_ontap_export_policy_rule:
+        state: present
+        policy_name: default
+        vserver: svm_nfs_test
+        client_match: 0.0.0.0/0
+        ro_rule: sys
+        rw_rule: sys
+        super_user_security: sys
+        protocol: ['nfs']
+        hostname: "{{ netapp_hostname }}"
+        username: "{{ netapp_username }}"
+        password: "{{ netapp_password }}"
+        https: true
+
+    - name: Crear política de snapshots
+      netapp.ontap.na_ontap_snapshot_policy:
+        state: present
+        name: default_snap_policy
+        vserver: svm_nfs_test
+        enabled: true
+        schedule:
+          - name: hourly
+            count: 6
+          - name: daily
+            count: 7
+          - name: weekly
+            count: 4
+        hostname: "{{ netapp_hostname }}"
+        username: "{{ netapp_username }}"
+        password: "{{ netapp_password }}"
+        https: true
