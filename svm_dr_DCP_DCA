@@ -1,0 +1,53 @@
+---
+- name: Replicar SVM svm_nfs_test de DCP a DCA
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Crear relación de peer entre los clusters DCP y DCA
+      netapp.ontap.na_ontap_cluster_peer:
+        state: present
+        peer_cluster_name: DCA
+        passphrase: "{{ cluster_peer_passphrase }}"
+        source_cluster: DCP
+        hostname: "{{ dcp_hostname }}"
+        username: "{{ dcp_username }}"
+        password: "{{ dcp_password }}"
+        https: true
+
+    - name: Crear relación de peer entre SVMs
+      netapp.ontap.na_ontap_svm_peer:
+        state: present
+        destination_vserver: svm_nfs_test_dr
+        source_vserver: svm_nfs_test
+        peer_cluster: DCA
+        applications: ['snapmirror']
+        hostname: "{{ dcp_hostname }}"
+        username: "{{ dcp_username }}"
+        password: "{{ dcp_password }}"
+        https: true
+
+    - name: Configurar SnapMirror para replicación de SVM
+      netapp.ontap.na_ontap_snapmirror:
+        state: present
+        source_vserver: svm_nfs_test
+        destination_vserver: svm_nfs_test_dr
+        destination_cluster: DCA
+        relationship_type: extended_data_protection
+        schedule: hourly
+        policy: MirrorAllSnapshots
+        hostname: "{{ dcp_hostname }}"
+        username: "{{ dcp_username }}"
+        password: "{{ dcp_password }}"
+        https: true
+
+    - name: Inicializar replicación SnapMirror
+      netapp.ontap.na_ontap_snapmirror:
+        state: present
+        source_vserver: svm_nfs_test
+        destination_vserver: svm_nfs_test_dr
+        destination_cluster: DCA
+        initialize: true
+        hostname: "{{ dcp_hostname }}"
+        username: "{{ dcp_username }}"
+        password: "{{ dcp_password }}"
+        https: true
