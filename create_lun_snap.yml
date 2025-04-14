@@ -1,0 +1,92 @@
+---
+- name: Crear LUN, mapear a iGroup y setear snapshot policy en NetApp
+  hosts: localhost
+  gather_facts: no
+  collections:
+    - netapp.ontap
+
+  vars:
+    hostname: "netapp-cluster.example.com"
+    username: "admin"
+    password: "your_password"
+
+    svm_name: "svm1"
+    volume_name: "vol_data01"
+    lun_name: "lun_data01"
+    lun_path: "/vol/{{ volume_name }}/{{ lun_name }}"
+    lun_size: "1g"
+
+    igroup_name: "linux_servers"
+    initiator_names:
+      - "iqn.1993-08.org.debian:01:abc123"
+
+    snapshot_policy_name: "daily_policy"
+
+  tasks:
+
+    - name: Crear la LUN
+      netapp.ontap.na_ontap_lun:
+        state: present
+        hostname: "{{ hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        https: true
+        validate_certs: false
+        vserver: "{{ svm_name }}"
+        name: "{{ lun_path }}"
+        size: "{{ lun_size }}"
+        os_type: linux
+        space_reserve: false
+
+    - name: Crear el igroup
+      netapp.ontap.na_ontap_igroup:
+        state: present
+        hostname: "{{ hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        https: true
+        validate_certs: false
+        vserver: "{{ svm_name }}"
+        initiator: "{{ initiator_names }}"
+        name: "{{ igroup_name }}"
+        ostype: linux
+        protocol: iscsi
+
+    - name: Mapear la LUN al igroup
+      netapp.ontap.na_ontap_lun_map:
+        state: present
+        hostname: "{{ hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        https: true
+        validate_certs: false
+        vserver: "{{ svm_name }}"
+        path: "{{ lun_path }}"
+        initiator_group_name: "{{ igroup_name }}"
+
+    - name: Crear política de snapshots diaria
+      netapp.ontap.na_ontap_snapshot_policy:
+        state: present
+        hostname: "{{ hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        https: true
+        validate_certs: false
+        name: "{{ snapshot_policy_name }}"
+        vserver: "{{ svm_name }}"
+        enabled: true
+        schedules:
+          - name: daily
+            count: 7
+
+    - name: Asignar la política de snapshots al volumen
+      netapp.ontap.na_ontap_volume:
+        state: present
+        hostname: "{{ hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        https: true
+        validate_certs: false
+        name: "{{ volume_name }}"
+        vserver: "{{ svm_name }}"
+        snapshot_policy: "{{ snapshot_policy_name }}"
